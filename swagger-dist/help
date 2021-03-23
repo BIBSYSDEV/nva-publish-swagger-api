@@ -1,0 +1,105 @@
+{
+  "swagger" : "2.0",
+  "info" : {
+    "version" : "1.0",
+    "title" : "NVA Fetch DOI"
+  },
+  "host" : "api.dev.nva.aws.unit.no",
+  "basePath" : "/doi-fetch",
+  "schemes" : [ "https" ],
+  "paths" : {
+    "/" : {
+      "post" : {
+        "consumes" : [ "application/json" ],
+        "produces" : [ "application/json" ],
+        "parameters" : [ {
+          "in" : "body",
+          "name" : "DoiLookup",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/definitions/DoiLookup"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "200 response",
+            "schema" : {
+              "$ref" : "#/definitions/Summary"
+            }
+          }
+        },
+        "security" : [ {
+          "CognitoUserPool" : [ ]
+        } ]
+      },
+      "options" : {
+        "consumes" : [ "application/json" ],
+        "produces" : [ "application/json" ],
+        "responses" : {
+          "200" : {
+            "description" : "200 response",
+            "headers" : {
+              "Access-Control-Allow-Origin" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Methods" : {
+                "type" : "string"
+              },
+              "Access-Control-Allow-Headers" : {
+                "type" : "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "securityDefinitions" : {
+    "CognitoUserPool" : {
+      "type" : "apiKey",
+      "name" : "Authorization",
+      "in" : "header",
+      "x-amazon-apigateway-authtype" : "cognito_user_pools"
+    }
+  },
+  "definitions" : {
+    "DoiLookup" : {
+      "type" : "object",
+      "required" : [ "doiUrl" ],
+      "properties" : {
+        "doiUrl" : {
+          "type" : "string"
+        }
+      }
+    },
+    "Summary" : {
+      "type" : "object",
+      "required" : [ "identifier", "title" ],
+      "properties" : {
+        "date" : {
+          "type" : "object",
+          "properties" : {
+            "month" : {
+              "type" : "string"
+            },
+            "year" : {
+              "type" : "string"
+            },
+            "day" : {
+              "type" : "string"
+            }
+          }
+        },
+        "identifier" : {
+          "type" : "string"
+        },
+        "creatorName" : {
+          "type" : "string"
+        },
+        "title" : {
+          "type" : "string"
+        }
+      }
+    }
+  }
+}

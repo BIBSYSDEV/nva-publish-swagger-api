@@ -1,0 +1,119 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+    Automatic Publish an public API
+
+Globals:
+  Function:
+    Timeout: 20
+
+Parameters:
+
+  ApiId:
+    Type: String
+    Description: ID from API-Gateway
+  TargetBucket:
+    Type: String
+    Description: Name of S3 Bucket containing API description
+
+Resources:
+
+  ExportFunctionPermissions:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [lambda.amazonaws.com]
+            Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: ['logs:*']
+                Resource: 'arn:aws:logs:*:*:*'
+        - PolicyName: readApigateWay
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: ['apigateway:GET']
+                Resource: '*'
+        - PolicyName: writeTos3
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: ['s3:*Object']
+                Resource: 'arn:aws:s3:::nva-dev-public-api/*'
+
+
+  EventListenerRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Updates external description of a API
+      EventPattern: '{ "source": [ "aws.apigateway" ], "detail": { "eventName": [ "UpdateRestApi" ] } }'
+      Name: updatePublicAPI
+      Targets:
+        - Arn: !GetAtt ExportApiFunction.Arn
+          Id: "ExportApiFunction"
+
+  ExportApiFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.handler
+      Runtime: python3.8
+      Role: !GetAtt ExportFunctionPermissions.Arn
+      Environment:
+        Variables:
+          TARGET_APIID: !Ref ApiId
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+
+          def handler(event, context):
+            print(json.dumps(event, default=str))
+
+            restApiId = event['detail']['responseElements']['restapiUpdate']['restApiId']
+            print("restApiId=", restApiId)
+
+            if restApiId == os.environ['TARGET_APIID']:
+              apiDefinitionBucketName =  'nva-dev-public-api'
+              apiDefinitionBucketKey = restApiId + '.json'
+
+              apigatewayClient = boto3.client('apigateway')
+              stageName = 'Prod'
+              exportType = 'swagger'
+              accepts='application/json'
+
+              response = apigatewayClient.get_export(
+                  restApiId=restApiId,
+                  stageName=stageName,
+                  exportType=exportType,
+                  accepts=accepts
+              )
+
+              print(json.dumps(response, default=str))
+              swaggerdef = response['body'].read()
+              print(swaggerdef)
+
+              s3client = boto3.client('s3')
+              s3response = s3client.put_object(Body=swaggerdef, Bucket=apiDefinitionBucketName, Key=apiDefinitionBucketKey)
+              print(s3response)
+
+              return {
+                'statusCode': 200,
+                'body': json.dumps(swaggerdef, default=str)
+              }
+            else:
+              return {
+                'statusCode': 304,
+                'body': 'Not changed!'
+              }
